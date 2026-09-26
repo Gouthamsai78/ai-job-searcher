@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Career Scout
 
-## Getting Started
+AI job discovery + ATS-optimized CV builder for the Indian job market.
 
-First, run the development server:
+Stack: Next.js 16, Prisma 7 + Neon Postgres, Gemini, Firecrawl, react-pdf, Vercel.
+
+## Quick start
 
 ```bash
+# 1. Provision a free Neon database at https://neon.tech and copy the connection string
+# 2. Get a Gemini API key at https://aistudio.google.com/apikey
+# 3. Get a Firecrawl API key at https://firecrawl.dev (free tier = 500 credits/mo)
+# 4. Copy env template and fill in real values
+cp .env.example .env
+# 5. Install deps (already done if cloned)
+npm install
+# 6. Generate Prisma client + push schema to database
+npx prisma generate
+npx prisma db push
+# 7. Run dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 → Onboarding → paste/upload your CV → Run discovery scan.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | Yes | Neon Postgres connection string (include `?sslmode=require`) |
+| `GOOGLE_API_KEY` | Yes | Gemini API key for profile parsing, scoring, CV generation |
+| `FIRECRAWL_API_KEY` | Yes | Firecrawl key for web search + careers page scraping |
+| `GEMINI_MODEL` | No | Override model (default: `gemini-3.6-flash`) |
+| `FIRECRAWL_MAX_CREDITS_PER_SCAN` | No | Cap credits per scan run (default: 500) |
+| `FIRECRAWL_WEBHOOK_SECRET` | No | Shared secret for the agent webhook. Strongly recommended in production; when unset the endpoint only accepts callbacks for agent job ids already tracked in the database. |
+| `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob token for storing CV PDFs (falls back to local `public/cvs/` in dev) |
+| `NEXT_PUBLIC_APP_URL` | No | Set automatically on Vercel; for local dev with Firecrawl webhooks use ngrok |
 
-## Learn More
+## How it works
 
-To learn more about Next.js, take a look at the following resources:
+1. **Profile setup** — paste CV text or upload PDF → Gemini parses into structured profile + derives search config (queries, keywords, negative filters, locations)
+2. **Discovery scan** — fetches Greenhouse/Ashby/Lever ATS boards for tracked companies, runs Firecrawl web searches for each query, scrapes company careers pages
+3. **Scoring** — each job scored for fit (Gemini) + ghost listing score (deterministic: source quality, freshness, repost markers)
+4. **CV builder** — Gemini generates tailored ATS resume per job → react-pdf renders PDF → stored on Vercel Blob (or local in dev)
+5. **Agent** (optional) — Firecrawl async agent for deep discovery; results arrive via webhook
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/
+  api/         Route handlers (profile, discover, jobs, cv, score, tracker, webhooks)
+  page.tsx     Dashboard
+  onboarding/  CV upload + profile setup
+  jobs/        Job list + detail + CV builder
+  tracker/     Application pipeline
+  agent/       Firecrawl agent launcher
+lib/
+  db.ts        Prisma client (lazy singleton with Neon adapter)
+  types.ts     Shared TS types
+  portals.ts   India job boards + tracked companies + ATS URL builders
+  jobs.ts      Title filtering, dedup, seniority ranking
+  utils.ts     Helpers (timeAgo, normalizeUrl, etc.)
+  mappers.ts   Prisma row → plain data converters
+  gemini/      Profile parsing, search config, scoring, CV tailoring
+  firecrawl/   Client, ATS fetchers, web search, careers scrape, agent
+  scoring/     Deterministic GLS (ghost listing score)
+  pdf/         react-pdf ATS template, render, Blob upload, PDF text extraction
+prisma/
+  schema.prisma
+generated/     Prisma client output (gitignored)
+```
 
-## Deploy on Vercel
+## Database
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Free tier: Neon Postgres (serverless, scales to zero).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Push schema (creates tables, no migrations needed for dev)
+npx prisma db push
+
+# For production migrations:
+npx prisma migrate dev --name init
+```
+
+Models: `Profile`, `SearchConfig`, `Scan`, `Job`, `ScanHistory`.
+
+## Deploy to Vercel
+
+1. Push to GitHub
+2. Import in Vercel → auto-detects Next.js
+3. Set env vars in Vercel dashboard (DATABASE_URL, GOOGLE_API_KEY, FIRECRAWL_API_KEY)
+4. Add `@neondatabase/serverless` and `@prisma/adapter-neon` to Vercel's bundled dependencies if needed
+5. Deploy
+
+## Credits / limits
+
+- **Gemini free tier**: 15 RPM, 1M tokens/day — sufficient for scoring + CV generation
+- **Firecrawl free tier**: 500 credits/month — use ATS feeds first (free), then web search
+- **Neon free tier**: 0.5 GB storage, 24/7 compute — sufficient for single-user
+- **Vercel Hobby**: 300s max function duration, 2GB memory — scan runs use `after()` to avoid blocking

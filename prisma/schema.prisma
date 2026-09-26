@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id                String    @id @default(cuid())
+  name              String
+  email             String?
+  phone             String?
+  location          String?
+  openToRelocation  Boolean   @default(true)
+  currentRole       String?
+  experienceYears   Float?
+  summary           String?
+  rawCv             String?
+  skills            String[]  @default([])
+  education         Json?
+  experience        Json?
+  projects          Json?
+  certifications    String[]  @default([])
+  noticePeriod      String?
+  compTargetMinLPA  Float?
+  compTargetMaxLPA  Float?
+  sectors           String[]  @default([])
+  dealbreakers      String[]  @default([])
+  targetRoles       String[]  @default([])
+  narrative         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  scans         Scan[]
+  jobs          Job[]
+  searchConfigs SearchConfig[]
+}
+
+model SearchConfig {
+  id               String   @id @default(cuid())
+  profileId        String
+  roles            String[] @default([])
+  queries          String[] @default([])
+  positiveKeywords String[] @default([])
+  negativeKeywords String[] @default([])
+  seniorityBoost   String[] @default([])
+  locations        String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model Scan {
+  id          String    @id @default(cuid())
+  profileId   String
+  status      String    @default("queued")
+  source      String    @default("manual")
+  progress    Json?
+  stats       Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobs    Job[]
+
+  @@index([profileId])
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  profileId    String
+  scanId       String?
+  source       String
+  sourceDetail String?
+  company      String
+  title        String
+  location     String?
+  salary       String?
+  url          String    @unique
+  jdText       String?
+  postedAt     DateTime?
+  fingerprint  String?
+  fitScore     Int?
+  fitReason    String?
+  glsScore     Int?
+  glsSignals   Json?
+  verdict      String?
+  status       String    @default("new")
+  cvPdfUrl     String?
+  cvBlobPath   String?
+  coverLetter  String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  scan    Scan?   @relation(fields: [scanId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, status])
+  @@index([scanId])
+}
+
+model ScanHistory {
+  id        String   @id @default(cuid())
+  url       String   @unique
+  firstSeen DateTime @default(now())
+  source    String?
+  title     String?
+  company   String?
+  status    String
+  createdAt DateTime @default(now())
+}
