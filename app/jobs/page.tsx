@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge, Score, Spinner } from '@/components/ui'
-import { timeAgo } from '@/lib/utils'
+import { readJson, timeAgo } from '@/lib/utils'
 
 interface Job {
   id: string
@@ -46,7 +46,7 @@ export default function JobsPage() {
       if (q.trim()) params.set('q', q.trim())
       try {
         const res = await fetch(`/api/jobs?${params.toString()}`)
-        const json = (await res.json()) as JobsResponse
+        const json = await readJson<JobsResponse>(res)
         if (cancelled) return
         setJobs(json.jobs)
         setError(null)
@@ -74,7 +74,8 @@ export default function JobsPage() {
     setError(null)
     try {
       const res = await fetch('/api/discover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      const json = (await res.json()) as { scanId: string }
+      const json = await readJson<{ scanId: string; error?: string }>(res)
+      if (!res.ok) throw new Error(json.error ?? 'Failed to start scan')
       setScanId(json.scanId)
       setScanStatus('queued')
     } catch (err) {
@@ -89,7 +90,7 @@ export default function JobsPage() {
     const timer = setInterval(async () => {
       try {
         const res = await fetch(`/api/discover?scanId=${scanId}`)
-        const json = (await res.json()) as { scan: { status: string; error: string | null } }
+        const json = await readJson<{ scan: { status: string; error: string | null } }>(res)
         if (cancelled) return
         setScanStatus(json.scan.status)
         if (json.scan.status === 'completed' || json.scan.status === 'failed') {
@@ -114,7 +115,7 @@ export default function JobsPage() {
     setError(null)
     try {
       const res = await fetch('/api/score', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 200 }) })
-      const json = (await res.json()) as { scored: number; error?: string }
+      const json = await readJson<{ scored: number; error?: string }>(res)
       if (!res.ok) throw new Error(json.error ?? 'Scoring failed')
       void load()
     } catch (err) {

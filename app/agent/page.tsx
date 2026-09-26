@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Badge, Spinner } from '@/components/ui'
-import { timeAgo } from '@/lib/utils'
+import { readJson, timeAgo } from '@/lib/utils'
 
 interface AgentStatus {
   status?: string
@@ -34,7 +34,7 @@ export default function AgentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompt.trim() ? prompt : undefined }),
       })
-      const json = (await res.json()) as { scanId: string; error?: string }
+      const json = await readJson<{ scanId: string; error?: string }>(res)
       if (!res.ok) throw new Error(json.error ?? 'Launch failed')
       setActive({ scanId: json.scanId, agentStatus: null })
       setPrompt('')
@@ -50,7 +50,7 @@ export default function AgentPage() {
     const timer = setInterval(async () => {
       try {
         const res = await fetch(`/api/discover/agent?scanId=${scanId}`)
-        const json = (await res.json()) as { agent?: AgentStatus; scan?: { status: string } }
+        const json = await readJson<{ agent?: AgentStatus; scan?: { status: string } }>(res)
         setActive({ scanId, agentStatus: json.agent ?? null })
         if (json.agent?.status === 'completed' || json.agent?.status === 'failed' || json.scan?.status === 'completed' || json.scan?.status === 'failed') {
           clearInterval(timer)
@@ -66,7 +66,7 @@ export default function AgentPage() {
     ;(async () => {
       try {
         const res = await fetch('/api/discover')
-        const json = (await res.json()) as { scans: ScanRow[] }
+        const json = await readJson<{ scans: ScanRow[] }>(res)
         if (!cancelled) setHistory(json.scans.filter((s) => s.progress?.stage === 'agent'))
       } catch {
         // ignore

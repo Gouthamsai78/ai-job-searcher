@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Badge, Score, Spinner } from '@/components/ui'
 import { JOB_STATUSES, VERDICTS } from '@/lib/types'
-import { formatDate, timeAgo } from '@/lib/utils'
+import { formatDate, readJson, timeAgo } from '@/lib/utils'
 
 interface GlsSignal {
   label: string
@@ -47,7 +47,7 @@ export default function JobDetailPage() {
     ;(async () => {
       try {
         const res = await fetch(`/api/jobs/${id}`)
-        const json = (await res.json()) as { job: Job; error?: string }
+        const json = await readJson<{ job: Job; error?: string }>(res)
         if (!res.ok) throw new Error(json.error ?? 'Not found')
         if (cancelled) return
         setJob(json.job)
@@ -69,7 +69,7 @@ export default function JobDetailPage() {
     setSaving(true)
     try {
       const res = await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      const json = (await res.json()) as { job: Job; error?: string }
+      const json = await readJson<{ job: Job; error?: string }>(res)
       if (!res.ok) throw new Error(json.error ?? 'Update failed')
       setJob(json.job)
     } catch (err) {
@@ -84,7 +84,7 @@ export default function JobDetailPage() {
     setError(null)
     try {
       const res = await fetch('/api/cv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: id }) })
-      const json = (await res.json()) as { url: string; error?: string }
+      const json = await readJson<{ url: string; error?: string }>(res)
       if (!res.ok) throw new Error(json.error ?? 'CV generation failed')
       setCvUrl(json.url)
     } catch (err) {

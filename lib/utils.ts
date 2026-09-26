@@ -36,11 +36,32 @@ export function truncate(text: string, max = 160): string {
   return text.slice(0, max).trimEnd() + '…'
 }
 
+/**
+ * Parse a fetch Response as JSON.
+ *
+ * Error responses often arrive with an empty body (Next.js route handlers
+ * that throw return a bare 500), and `res.json()` on those surfaced in the UI
+ * as a cryptic "Unexpected end of JSON input" SyntaxError instead of the
+ * actual HTTP status. Read the body as text first and fall back to the status.
+ */
+export async function readJson<T>(res: Response): Promise<T> {
+  const text = await res.text().catch(() => '')
+  if (text) {
+    try {
+      return JSON.parse(text) as T
+    } catch {
+      // not JSON — fall through and report by status instead
+    }
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  throw new Error(text ? 'Response was not valid JSON' : `Empty response (HTTP ${res.status})`)
+}
+
 export async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CareerScout/1.0)', ...(init?.headers ?? {}) },
   })
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`)
-  return (await res.json()) as T
+  return readJson<T>(res)
 }

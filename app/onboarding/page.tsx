@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Badge, Spinner } from '@/components/ui'
+import { readJson } from '@/lib/utils'
 
 interface ProfileResponse {
   profile: {
@@ -43,7 +44,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cvText: body }),
       })
-      const json = (await res.json()) as ProfileResponse & { error?: string }
+      const json = await readJson<ProfileResponse & { error?: string }>(res)
       if (!res.ok) throw new Error(json.error ?? 'Failed to parse CV')
       setResult(json)
     } catch (err) {
@@ -60,7 +61,7 @@ export default function OnboardingPage() {
       const form = new FormData()
       form.append('file', file)
       const res = await fetch('/api/profile', { method: 'POST', body: form })
-      const json = (await res.json()) as ProfileResponse & { error?: string }
+      const json = await readJson<ProfileResponse & { error?: string }>(res)
       if (!res.ok) throw new Error(json.error ?? 'Failed to parse file')
       setResult(json)
     } catch (err) {

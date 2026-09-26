@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { readJson } from '@/lib/utils'
 
 export function useApi<T>(path: string, opts?: { poll?: number }) {
   const [data, setData] = useState<T | null>(null)
@@ -15,8 +16,7 @@ export function useApi<T>(path: string, opts?: { poll?: number }) {
     const load = async () => {
       try {
         const res = await fetch(path)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const json = (await res.json()) as T
+        const json = await readJson<T>(res)
         if (cancelled) return
         setData(json)
         setError(null)
